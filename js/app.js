@@ -1,34 +1,7 @@
 "use strict";
 
-/**
- * «Проявка» — вся клиентская логика приложения.
- *
- * Файл разбит на разделы:
- *   1. Утилиты
- *   2. Данные и константы
- *   3. Состояние приложения
- *   4. Отрисовка макета
- *   5. Управление редактором
- *   6. Аккаунт
- *   7. Библиотека эффектов
- *   8. Заказы
- *   9. Маршруты и запуск
- *
- * Всё хранится в localStorage браузера: сервера в прототипе нет.
- */
-
-/* =========================================================================
-   1. УТИЛИТЫ
-   ========================================================================= */
-
-/** Короткая обёртка для document.querySelector. */
 const $ = (selector) => document.querySelector(selector);
 
-/**
- * Безопасная работа с localStorage.
- * get() возвращает fallback при отсутствии ключа или битом JSON,
- * set() сообщает пользователю, если запись не удалась (переполнена квота).
- */
 const storage = {
   get(key, fallback) {
     try {
@@ -57,7 +30,6 @@ const storage = {
   },
 };
 
-/** Показывает всплывающее уведомление на 2,6 секунды. */
 function toast(text) {
   const element = $("#toast");
   element.textContent = text;
@@ -68,12 +40,10 @@ function toast(text) {
   }, 2600);
 }
 
-/** Ограничивает число диапазоном [min, max]. */
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-/** Экранирует текст перед вставкой в HTML (защита от XSS). */
 function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, (character) => {
     return {
@@ -86,30 +56,16 @@ function escapeHtml(text) {
   });
 }
 
-/* =========================================================================
-   2. ДАННЫЕ И КОНСТАНТЫ
-   ========================================================================= */
-
-/** Ширина внутреннего canvas макета в пикселях. */
 const CANVAS_WIDTH = 900;
-/** Максимальная ширина PNG-эффекта, сохраняемого в библиотеку. */
 const LIBRARY_MAX_WIDTH = 600;
-/** Ширина миниатюры заказа. */
 const THUMB_WIDTH = 240;
-/** Качество JPEG при скачивании макета. */
 const JPEG_QUALITY_DOWNLOAD = 0.92;
-/** Качество JPEG для миниатюры заказа. */
 const JPEG_QUALITY_THUMB = 0.6;
-/** Минимальная длина пароля. */
 const MIN_PASSWORD_LENGTH = 6;
-/** Максимальное количество копий. */
 const MAX_QTY = 500;
-/** Множитель размера наклеек из готовых образов. */
 const LOOK_STICKER_SCALE = 0.45;
-/** Размер отдельной наклейки по умолчанию (доля ширины макета). */
 const DEFAULT_STICKER_SIZE = 0.18;
 
-/** Форматы печати: подпись, размеры в мм и базовая цена в рублях. */
 const FORMATS = [
   { label: "10×15 см", width: 100, height: 150, price: 25 },
   { label: "13×18 см", width: 130, height: 180, price: 45 },
@@ -118,20 +74,12 @@ const FORMATS = [
   { label: "Документы 3×4", width: 30, height: 40, price: 120 },
 ];
 
-/**
- * Строит цветовую матрицу насыщенности 3×3.
- * Используется эффектом «Контраст».
- */
 const saturationMatrix = (value) => [
   0.213 + 0.787 * value, 0.715 - 0.715 * value, 0.072 - 0.072 * value,
   0.213 - 0.213 * value, 0.715 + 0.285 * value, 0.072 - 0.072 * value,
   0.213 - 0.213 * value, 0.715 - 0.715 * value, 0.072 + 0.928 * value,
 ];
 
-/**
- * Эффекты обработки фото.
- * matrix — цветовая матрица 3×3, contrast — контраст, brightness — сдвиг яркости.
- */
 const EFFECTS = {
   none: { name: "Без эффекта" },
   bw: {
@@ -163,13 +111,8 @@ const EFFECTS = {
   },
 };
 
-/** Отдельные наклейки, доступные в редакторе. */
 const STICKERS = ["🎩", "🕶️", "👑", "🎀", "🧢", "👒", "🎅", "🌸", "⭐", "❄️", "🎈", "🎉"];
 
-/**
- * Готовые образы: список наклеек с позицией (доли ширины/высоты)
- * и размером относительно ширины макета.
- */
 const LOOKS = {
   "Офис": [
     { emoji: "🎩", x: 0.5, y: 0.12, size: 0.3 },
@@ -192,45 +135,26 @@ const LOOKS = {
   ],
 };
 
-/* =========================================================================
-   3. СОСТОЯНИЕ ПРИЛОЖЕНИЯ
-   ========================================================================= */
-
-/** Всё изменяемое состояние редактора. */
 const state = {
-  image: null,          // загруженное фото (HTMLImageElement)
-  imageVersion: 0,      // увеличивается при загрузке нового фото — сбрасывает кэш
-  effect: "none",       // ключ эффекта из EFFECTS
-  overlay: null,        // свой PNG-эффект (HTMLImageElement)
-  vignette: false,      // включена ли виньетка
-  stickers: [],         // наклейки: { emoji, x, y, size }
-  selected: -1,         // индекс выбранной наклейки или -1
-  formatIndex: 0,       // выбранный формат из FORMATS
-  landscape: false,     // горизонтальная ориентация
-  frame: "none",        // none | thin | polaroid
+  image: null,
+  imageVersion: 0,
+  effect: "none",
+  overlay: null,
+  vignette: false,
+  stickers: [],
+  selected: -1,
+  formatIndex: 0,
+  landscape: false,
+  frame: "none",
 };
 
-/** Текущий пользователь из localStorage или null. */
 let user = storage.get("session", null);
-/** Кэш обработанного фото: не пересчитываем пиксели при каждом движении мыши. */
 let filterCache = { key: "", canvas: null };
-/** Открыта ли форма регистрации (а не входа). */
 let isRegisterMode = false;
-/** Индекс перетаскиваемой наклейки или -1. */
 let dragIndex = -1;
 
-/** Основной canvas предпросмотра. */
 const canvas = $("#cv");
 
-/* =========================================================================
-   4. ОТРИСОВКА МАКЕТА
-   ========================================================================= */
-
-/**
- * Возвращает размеры canvas под выбранный формат
- * с учётом горизонтальной ориентации.
- * @returns {[number, number]} ширина и высота в пикселях
- */
 function getCanvasSize() {
   const format = FORMATS[state.formatIndex];
   let width = format.width;
@@ -239,18 +163,10 @@ function getCanvasSize() {
   return [CANVAS_WIDTH, Math.round((CANVAS_WIDTH * height) / width)];
 }
 
-/** Сбрасывает кэш обработанного фото (после смены размера или эффекта). */
 function resetFilterCache() {
   filterCache.key = "";
 }
 
-/**
- * Возвращает фото, вписанное в iw×ih (режим cover) с применённым эффектом.
- * Результат кэшируется, чтобы не пересчитывать пиксели при перерисовке.
- * @param {number} iw ширина области
- * @param {number} ih высота области
- * @returns {HTMLCanvasElement}
- */
 function getFilteredImage(iw, ih) {
   const key = [state.effect, iw, ih, state.imageVersion].join("|");
   if (filterCache.key === key) return filterCache.canvas;
@@ -260,13 +176,11 @@ function getFilteredImage(iw, ih) {
   result.height = ih;
   const context = result.getContext("2d");
 
-  // Вписываем фото по большей стороне (аналог object-fit: cover).
   const scale = Math.max(iw / state.image.width, ih / state.image.height);
   const width = state.image.width * scale;
   const height = state.image.height * scale;
   context.drawImage(state.image, (iw - width) / 2, (ih - height) / 2, width, height);
 
-  // Применяем цветовую матрицу попиксельно.
   const effect = EFFECTS[state.effect];
   if (effect.matrix) {
     const imageData = context.getImageData(0, 0, iw, ih);
@@ -295,22 +209,15 @@ function getFilteredImage(iw, ih) {
   return result;
 }
 
-/**
- * Рисует готовый макет в canvas: рамка, фото, виньетка,
- * свой эффект и наклейки с выделением выбранной.
- * @param {HTMLCanvasElement} target
- */
 function drawCanvas(target) {
   const [width, height] = getCanvasSize();
   target.width = width;
   target.height = height;
   const context = target.getContext("2d");
 
-  // Белая подложка — поля рамки и область без фото.
   context.fillStyle = "#fff";
   context.fillRect(0, 0, width, height);
 
-  // Отступы рамки. У «полароида» нижнее поле заметно больше.
   const margin =
     state.frame === "polaroid" ? width * 0.05 : state.frame === "thin" ? width * 0.03 : 0;
   const marginBottom = state.frame === "polaroid" ? width * 0.16 : margin;
@@ -320,7 +227,6 @@ function drawCanvas(target) {
   if (state.image) {
     context.drawImage(getFilteredImage(innerWidth, innerHeight), margin, margin);
 
-    // Виньетка рисуется только внутри области фото.
     if (state.vignette) {
       const gradient = context.createRadialGradient(
         width / 2,
@@ -341,24 +247,20 @@ function drawCanvas(target) {
       context.restore();
     }
 
-    // Свой PNG-эффект (рамка, текстура) поверх фото.
     if (state.overlay) {
       context.drawImage(state.overlay, margin, margin, innerWidth, innerHeight);
     }
   } else {
-    // Заглушка, пока фото не загружено.
     context.fillStyle = "#e7e5dc";
     context.fillRect(margin, margin, innerWidth, innerHeight);
   }
 
-  // Наклейки. Размер и координаты считаются в долях ширины макета.
   context.textAlign = "center";
   context.textBaseline = "middle";
   state.stickers.forEach((sticker, index) => {
     context.font = `${sticker.size * width}px sans-serif`;
     context.fillText(sticker.emoji, sticker.x * width, sticker.y * width);
 
-    // Пунктирная рамка вокруг выбранной наклейки.
     if (index === state.selected) {
       context.strokeStyle = "#0E8FA8";
       context.lineWidth = 3;
@@ -374,33 +276,22 @@ function drawCanvas(target) {
   });
 }
 
-/** Перерисовывает предпросмотр и обновляет цену. */
 function renderEditor() {
   drawCanvas(canvas);
   updatePrice();
 }
 
-/**
- * Возвращает количество копий с ограничением 1…500.
- * Пользователь может ввести отрицательное число или больше максимума.
- */
 function getQty() {
   const value = parseInt($("#qty").value, 10);
   return Number.isFinite(value) ? clamp(value, 1, MAX_QTY) : 1;
 }
 
-/** Считает стоимость и выводит её в блок цены. */
 function updatePrice() {
   const basePrice = FORMATS[state.formatIndex].price;
   const paperFactor = Number($("#paper").value) || 1;
   $("#price").textContent = `${Math.round(basePrice * getQty() * paperFactor)} ₽`;
 }
 
-/* =========================================================================
-   5. УПРАВЛЕНИЕ РЕДАКТОРОМ
-   ========================================================================= */
-
-// Заполняем списки форматов, эффектов и образов при загрузке страницы.
 FORMATS.forEach((format, index) => {
   $("#fmt").add(new Option(`${format.label} — от ${format.price} ₽`, index));
 });
@@ -422,7 +313,6 @@ $("#looks").innerHTML =
       `<button class="look" data-stk="${emoji}" aria-label="Наклейка ${emoji}">${emoji}</button>`
   ).join("");
 
-/** Переключает эффект и подсвечивает активную кнопку. */
 $("#fxBtns").onclick = (event) => {
   const key = event.target.dataset.fx;
   if (!key) return;
@@ -433,7 +323,6 @@ $("#fxBtns").onclick = (event) => {
   renderEditor();
 };
 
-/** Применяет готовый образ: заменяет все наклейки набором из LOOKS. */
 function applyLook(name) {
   const look = LOOKS[name];
   if (!look) return;
@@ -441,14 +330,12 @@ function applyLook(name) {
   state.stickers = look.map((item) => ({
     emoji: item.emoji,
     x: item.x,
-    // y в LOOKS задан долей высоты, а рисуем мы в системе, где 1 = ширина.
     y: (item.y * height) / width,
     size: item.size * LOOK_STICKER_SCALE,
   }));
   state.selected = -1;
 }
 
-/** Добавляет одну наклейку в центр макета и выбирает её. */
 function addSticker(emoji) {
   const [, height] = getCanvasSize();
   state.stickers.push({
@@ -461,7 +348,6 @@ function addSticker(emoji) {
   $("#sz").value = DEFAULT_STICKER_SIZE * 100;
 }
 
-/** Клик по образцу или отдельной наклейке. */
 $("#looks").onclick = (event) => {
   const lookName = event.target.dataset.look;
   const emoji = event.target.dataset.stk;
@@ -475,14 +361,12 @@ $("#looks").onclick = (event) => {
   renderEditor();
 };
 
-/** Размер выбранной наклейки. */
 $("#sz").oninput = (event) => {
   if (state.selected < 0) return;
   state.stickers[state.selected].size = Number(event.target.value) / 100;
   renderEditor();
 };
 
-/** Удаляет выбранную наклейку. */
 $("#delSt").onclick = () => {
   if (state.selected < 0) return;
   state.stickers.splice(state.selected, 1);
@@ -490,52 +374,42 @@ $("#delSt").onclick = () => {
   renderEditor();
 };
 
-/** Убирает все наклейки. */
 $("#clrSt").onclick = () => {
   state.stickers = [];
   state.selected = -1;
   renderEditor();
 };
 
-/** Смена формата печати. */
 $("#fmt").onchange = (event) => {
   state.formatIndex = Number(event.target.value);
   resetFilterCache();
   renderEditor();
 };
 
-/** Смена рамки. */
 $("#frame").onchange = (event) => {
   state.frame = event.target.value;
   resetFilterCache();
   renderEditor();
 };
 
-/** Горизонтальная ориентация. */
 $("#land").onchange = (event) => {
   state.landscape = event.target.checked;
   resetFilterCache();
   renderEditor();
 };
 
-/** Включение виньетки. */
 $("#vig").onchange = (event) => {
   state.vignette = event.target.checked;
   renderEditor();
 };
 
-// Цена пересчитывается при изменении количества и типа бумаги.
 $("#qty").oninput = updatePrice;
 $("#qty").onchange = () => {
-  $("#qty").value = getQty(); // приводим ручной ввод к диапазону 1…500
+  $("#qty").value = getQty();
   updatePrice();
 };
 $("#paper").onchange = updatePrice;
 
-/**
- * Загружает изображение из data URL.
- * Промис отклоняется, если файл повреждён или не является изображением.
- */
 function loadImage(source) {
   return new Promise((resolve, reject) => {
     const image = new Image();
@@ -545,7 +419,6 @@ function loadImage(source) {
   });
 }
 
-/** Читает файл в data URL; при ошибке отклоняет промис. */
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -555,7 +428,6 @@ function readFileAsDataUrl(file) {
   });
 }
 
-/** Загрузка основного фото. */
 $("#file").onchange = async (event) => {
   const file = event.target.files[0];
   if (!file) return;
@@ -568,15 +440,10 @@ $("#file").onchange = async (event) => {
   } catch (error) {
     toast(error.message);
   } finally {
-    event.target.value = ""; // позволяет повторно выбрать тот же файл
+    event.target.value = "";
   }
 };
 
-/**
- * Переводит координаты указателя в систему макета.
- * Обе оси нормированы на ширину canvas — так же хранятся наклейки.
- * @returns {[number, number]}
- */
 function pointerToCanvas(event) {
   const rect = canvas.getBoundingClientRect();
   const scale = canvas.width / rect.width;
@@ -586,12 +453,10 @@ function pointerToCanvas(event) {
   ];
 }
 
-/** Нажатие на canvas: выбирает наклейку и начинает перетаскивание. */
 canvas.onpointerdown = (event) => {
   const [x, y] = pointerToCanvas(event);
   dragIndex = -1;
 
-  // Идём с верхней наклейки вниз: верхняя перекрывает нижние.
   for (let i = state.stickers.length - 1; i >= 0; i--) {
     const sticker = state.stickers[i];
     if (Math.hypot(sticker.x - x, sticker.y - y) < sticker.size * 0.6) {
@@ -608,7 +473,6 @@ canvas.onpointerdown = (event) => {
   renderEditor();
 };
 
-/** Перетаскивание выбранной наклейки. */
 canvas.onpointermove = (event) => {
   if (dragIndex < 0) return;
   const [x, y] = pointerToCanvas(event);
@@ -617,19 +481,10 @@ canvas.onpointermove = (event) => {
   renderEditor();
 };
 
-/** Завершение перетаскивания. */
 canvas.onpointerup = () => {
   dragIndex = -1;
 };
 
-/* =========================================================================
-   6. АККАУНТ
-   ========================================================================= */
-
-/**
- * Считает SHA-256 хэш пароля.
- * Web Crypto доступен только в защищённом контексте (HTTPS или localhost).
- */
 async function hashPassword(password) {
   if (!globalThis.crypto || !crypto.subtle) {
     throw new Error("Не получается войти. Откройте сайт по HTTPS или через localhost");
@@ -640,14 +495,12 @@ async function hashPassword(password) {
     .join("");
 }
 
-/** Очищает поля формы входа — пароль не должен оставаться на экране. */
 function clearAuthForm() {
   $("#aMail").value = "";
   $("#aPass").value = "";
   $("#aName").value = "";
 }
 
-/** Переключает форму между входом и регистрацией. */
 function setAuthMode(register) {
   isRegisterMode = register;
   $("#nameRow").hidden = !register;
@@ -657,13 +510,8 @@ function setAuthMode(register) {
   $("#aPass").autocomplete = register ? "new-password" : "current-password";
 }
 
-/** Кнопка переключения «Войти» / «Регистрация». */
 $("#authSw").onclick = () => setAuthMode(!isRegisterMode);
 
-/**
- * Регистрация или вход.
- * Пароль хранится как хэш SHA-256 в localStorage (ограничение прототипа).
- */
 $("#authGo").onclick = async () => {
   const mail = $("#aMail").value.trim().toLowerCase();
   const password = $("#aPass").value;
@@ -687,7 +535,6 @@ $("#authGo").onclick = async () => {
   if (isRegisterMode) {
     if (users[mail]) return toast("Такая почта уже есть");
     if (!name) return toast("Введите имя");
-    // hash — новый формат записи, h — старый (совместимость с уже сохранёнными аккаунтами).
     users[mail] = { name, hash: passwordHash };
     if (!storage.set("users", users)) return;
   } else {
@@ -701,14 +548,13 @@ $("#authGo").onclick = async () => {
   user = { mail, name: users[mail].name };
   if (!storage.set("session", user)) return;
 
-  setAuthMode(false); // после входа/регистрации форма снова открывается как «Вход»
+  setAuthMode(false);
   clearAuthForm();
   toast(`Здравствуйте, ${user.name}`);
   location.hash = "#editor";
-  renderRoute(); // если хэш уже был #editor, hashchange не сработает
+  renderRoute();
 };
 
-/** Выход из аккаунта. */
 $("#out").onclick = () => {
   user = null;
   storage.remove("session");
@@ -718,23 +564,16 @@ $("#out").onclick = () => {
   renderRoute();
 };
 
-/* =========================================================================
-   7. БИБЛИОТЕКА ЭФФЕКТОВ
-   ========================================================================= */
-
-/** Ключ библиотеки эффектов текущего пользователя. */
 function libraryKey() {
   return "fx:" + user.mail;
 }
 
-/** Возвращает библиотеку эффектов (массив data URL). */
 function getLibrary() {
   if (!user) return [];
   const library = storage.get(libraryKey(), []);
   return Array.isArray(library) ? library : [];
 }
 
-/** Рисует миниатюры эффектов в редакторе и в кабинете. */
 function renderLibrary() {
   const library = getLibrary();
   const html = library
@@ -750,7 +589,6 @@ function renderLibrary() {
   $("#libEmpty").hidden = library.length > 0;
 }
 
-/** Загрузка своего PNG-эффекта и сохранение его в библиотеку. */
 $("#ovFile").onchange = async (event) => {
   const file = event.target.files[0];
   if (!file) return;
@@ -765,7 +603,6 @@ $("#ovFile").onchange = async (event) => {
       return;
     }
 
-    // Уменьшаем копию, чтобы не занимать всю квоту localStorage.
     const scale = Math.min(1, LIBRARY_MAX_WIDTH / image.width);
     const preview = document.createElement("canvas");
     preview.width = Math.round(image.width * scale);
@@ -779,14 +616,10 @@ $("#ovFile").onchange = async (event) => {
   } catch (error) {
     toast(error.message);
   } finally {
-    event.target.value = ""; // позволяет повторно выбрать то же изображение
+    event.target.value = "";
   }
 };
 
-/**
- * Делегирование кликов по миниатюрам библиотеки:
- * data-use — применить эффект, data-del — удалить.
- */
 document.addEventListener("click", async (event) => {
   if (!user) return;
   const useIndex = event.target.dataset.use;
@@ -812,29 +645,21 @@ document.addEventListener("click", async (event) => {
   }
 });
 
-/* =========================================================================
-   8. ЗАКАЗЫ
-   ========================================================================= */
-
-/** Ключ списка заказов текущего пользователя. */
 function ordersKey() {
   return "orders:" + user.mail;
 }
 
-/** Возвращает заказы пользователя. */
 function getOrders() {
   if (!user) return [];
   const orders = storage.get(ordersKey(), []);
   return Array.isArray(orders) ? orders : [];
 }
 
-/** Следующий номер заказа: максимум из существующих + 1. */
 function nextOrderId(orders) {
   const maxId = orders.reduce((max, order) => Math.max(max, Number(order.id) || 0), 1000);
   return maxId + 1;
 }
 
-/** Отправка заказа: миниатюра, данные формы и запись в localStorage. */
 $("#send").onclick = () => {
   if (!state.image) return toast("Сначала загрузите фото");
   if (!user) {
@@ -871,7 +696,6 @@ $("#send").onclick = () => {
   location.hash = "#orders";
 };
 
-/** Скачивание макета в JPG. */
 $("#dl").onclick = () => {
   if (!state.image) return toast("Сначала загрузите фото");
   const link = document.createElement("a");
@@ -880,7 +704,6 @@ $("#dl").onclick = () => {
   link.click();
 };
 
-/** Рисует историю заказов в личном кабинете. */
 function renderOrders() {
   const element = $("#ordList");
 
@@ -899,7 +722,6 @@ function renderOrders() {
 
   element.innerHTML = orders
     .map((order) => {
-      // Совместимость со старыми записями: th → thumb, st → status.
       const thumbSource = order.thumb || order.th || "";
       const thumb = /^data:image\//.test(thumbSource) ? thumbSource : "";
       const status = order.status || order.st || "Принят";
@@ -916,17 +738,8 @@ function renderOrders() {
     .join("");
 }
 
-/* =========================================================================
-   9. МАРШРУТЫ И ЗАПУСК
-   ========================================================================= */
-
-/** Доступные разделы приложения. */
 const ROUTES = ["editor", "orders", "cabinet"];
 
-/**
- * Показывает нужный раздел по location.hash,
- * обновляет шапку, кабинет, библиотеку и заказы.
- */
 function renderRoute() {
   const requested = location.hash.slice(1);
   const route = ROUTES.includes(requested) ? requested : "editor";
@@ -935,12 +748,10 @@ function renderRoute() {
     $("#v-" + name).hidden = name !== route;
   });
 
-  // Подсветка активного пункта меню.
   document.querySelectorAll("nav a").forEach((link) => link.removeAttribute("aria-current"));
   const currentLink = document.querySelector(`nav a[href="#${route}"]`);
   if (currentLink) currentLink.setAttribute("aria-current", "page");
 
-  // Шапка и личный кабинет.
   $("#navCab").textContent = user ? user.name : "Войти";
   $("#authBox").hidden = !!user;
   $("#cabBox").hidden = !user;
@@ -954,6 +765,5 @@ function renderRoute() {
   if (route === "editor") renderEditor();
 }
 
-// Перерисовка при смене хэша и первый запуск.
 addEventListener("hashchange", renderRoute);
 renderRoute();
