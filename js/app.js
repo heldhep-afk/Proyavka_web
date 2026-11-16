@@ -43,7 +43,7 @@ const storage = {
       localStorage.setItem(key, JSON.stringify(value));
       return true;
     } catch (error) {
-      toast("Не удалось сохранить: память браузера заполнена");
+      toast("Не сохранилось: память браузера заполнена");
       return false;
     }
   },
@@ -115,7 +115,7 @@ const FORMATS = [
   { label: "13×18 см", width: 130, height: 180, price: 45 },
   { label: "15×21 см", width: 150, height: 210, price: 60 },
   { label: "A4, 21×30 см", width: 210, height: 297, price: 150 },
-  { label: "Фото на документы 3×4", width: 30, height: 40, price: 120 },
+  { label: "Документы 3×4", width: 30, height: 40, price: 120 },
 ];
 
 /**
@@ -133,30 +133,30 @@ const saturationMatrix = (value) => [
  * matrix — цветовая матрица 3×3, contrast — контраст, brightness — сдвиг яркости.
  */
 const EFFECTS = {
-  none: { name: "Оригинал" },
+  none: { name: "Без эффекта" },
   bw: {
-    name: "Чёрно-белое",
+    name: "Ч/б",
     matrix: [0.3, 0.59, 0.11, 0.3, 0.59, 0.11, 0.3, 0.59, 0.11],
     contrast: 1.1,
   },
   sepia: {
-    name: "Сепия",
+    name: "Старое фото",
     matrix: [0.393, 0.769, 0.189, 0.349, 0.686, 0.168, 0.272, 0.534, 0.131],
     contrast: 1,
   },
   warm: {
-    name: "Тёплое",
+    name: "Теплее",
     matrix: [1.1, 0.05, 0, 0, 1, 0, 0, 0.05, 0.88],
     contrast: 1.05,
   },
   cool: {
-    name: "Холодное",
+    name: "Холоднее",
     matrix: [0.9, 0, 0.05, 0, 1, 0.05, 0.05, 0.05, 1.1],
     contrast: 1,
   },
-  pop: { name: "Контраст", matrix: saturationMatrix(1.35), contrast: 1.3 },
+  pop: { name: "Ярче", matrix: saturationMatrix(1.35), contrast: 1.3 },
   fade: {
-    name: "Плёнка",
+    name: "Ретро",
     matrix: saturationMatrix(0.8),
     contrast: 0.88,
     brightness: 22,
@@ -171,11 +171,11 @@ const STICKERS = ["🎩", "🕶️", "👑", "🎀", "🧢", "👒", "🎅", "�
  * и размером относительно ширины макета.
  */
 const LOOKS = {
-  "Деловой": [
+  "Офис": [
     { emoji: "🎩", x: 0.5, y: 0.12, size: 0.3 },
     { emoji: "🕶️", x: 0.5, y: 0.4, size: 0.32 },
   ],
-  "Пляж": [
+  "Море": [
     { emoji: "👒", x: 0.5, y: 0.12, size: 0.34 },
     { emoji: "🕶️", x: 0.5, y: 0.4, size: 0.32 },
     { emoji: "🌴", x: 0.88, y: 0.86, size: 0.22 },
@@ -540,7 +540,7 @@ function loadImage(source) {
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("Не удалось открыть изображение"));
+    image.onerror = () => reject(new Error("Не получилось открыть фото"));
     image.src = source;
   });
 }
@@ -550,7 +550,7 @@ function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(new Error("Не удалось прочитать файл"));
+    reader.onerror = () => reject(new Error("Не получилось прочитать файл"));
     reader.readAsDataURL(file);
   });
 }
@@ -632,7 +632,7 @@ canvas.onpointerup = () => {
  */
 async function hashPassword(password) {
   if (!globalThis.crypto || !crypto.subtle) {
-    throw new Error("Вход недоступен: откройте сайт по HTTPS или через localhost");
+    throw new Error("Не получается войти. Откройте сайт по HTTPS или через localhost");
   }
   const buffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(password));
   return [...new Uint8Array(buffer)]
@@ -652,12 +652,12 @@ function setAuthMode(register) {
   isRegisterMode = register;
   $("#nameRow").hidden = !register;
   $("#authTtl").textContent = register ? "Регистрация" : "Вход";
-  $("#authGo").textContent = register ? "Создать аккаунт" : "Войти";
-  $("#authSw").textContent = register ? "У меня есть аккаунт" : "Создать аккаунт";
+  $("#authGo").textContent = register ? "Зарегистрироваться" : "Войти";
+  $("#authSw").textContent = register ? "Войти" : "Регистрация";
   $("#aPass").autocomplete = register ? "new-password" : "current-password";
 }
 
-/** Кнопка «Создать аккаунт» / «У меня есть аккаунт». */
+/** Кнопка переключения «Войти» / «Регистрация». */
 $("#authSw").onclick = () => setAuthMode(!isRegisterMode);
 
 /**
@@ -669,9 +669,9 @@ $("#authGo").onclick = async () => {
   const password = $("#aPass").value;
   const name = $("#aName").value.trim();
 
-  if (!/^\S+@\S+\.\S+$/.test(mail)) return toast("Введите корректную почту");
+  if (!/^\S+@\S+\.\S+$/.test(mail)) return toast("Проверьте почту");
   if (password.length < MIN_PASSWORD_LENGTH) {
-    return toast(`Пароль короче ${MIN_PASSWORD_LENGTH} символов`);
+    return toast(`Пароль: минимум ${MIN_PASSWORD_LENGTH} символов`);
   }
 
   let passwordHash;
@@ -682,11 +682,11 @@ $("#authGo").onclick = async () => {
   }
 
   const users = storage.get("users", {});
-  if (!users || typeof users !== "object") return toast("Не удалось прочитать данные аккаунтов");
+  if (!users || typeof users !== "object") return toast("Не получилось прочитать аккаунты");
 
   if (isRegisterMode) {
-    if (users[mail]) return toast("Эта почта уже зарегистрирована");
-    if (!name) return toast("Укажите имя");
+    if (users[mail]) return toast("Такая почта уже есть");
+    if (!name) return toast("Введите имя");
     // hash — новый формат записи, h — старый (совместимость с уже сохранёнными аккаунтами).
     users[mail] = { name, hash: passwordHash };
     if (!storage.set("users", users)) return;
@@ -694,7 +694,7 @@ $("#authGo").onclick = async () => {
     const entry = users[mail];
     const storedHash = entry ? entry.hash || entry.h : "";
     if (!entry || storedHash !== passwordHash) {
-      return toast("Неверная почта или пароль");
+      return toast("Почта или пароль не подходят");
     }
   }
 
@@ -703,7 +703,7 @@ $("#authGo").onclick = async () => {
 
   setAuthMode(false); // после входа/регистрации форма снова открывается как «Вход»
   clearAuthForm();
-  toast(`Добро пожаловать, ${user.name}`);
+  toast(`Здравствуйте, ${user.name}`);
   location.hash = "#editor";
   renderRoute(); // если хэш уже был #editor, hashchange не сработает
 };
@@ -761,7 +761,7 @@ $("#ovFile").onchange = async (event) => {
     renderEditor();
 
     if (!user) {
-      toast("Эффект применён. Войдите, чтобы сохранить его в кабинете");
+      toast("Эффект добавлен. Войдите, чтобы сохранить его");
       return;
     }
 
@@ -774,7 +774,7 @@ $("#ovFile").onchange = async (event) => {
 
     const library = getLibrary();
     library.push(preview.toDataURL("image/png"));
-    if (storage.set(libraryKey(), library)) toast("Эффект сохранён в кабинете");
+    if (storage.set(libraryKey(), library)) toast("Эффект сохранён");
     renderLibrary();
   } catch (error) {
     toast(error.message);
@@ -867,7 +867,7 @@ $("#send").onclick = () => {
   orders.unshift(order);
   if (!storage.set(ordersKey(), orders)) return;
 
-  toast(`Заказ №${order.id} отправлен в печать`);
+  toast(`Заказ №${order.id} принят`);
   location.hash = "#orders";
 };
 
@@ -886,14 +886,14 @@ function renderOrders() {
 
   if (!user) {
     element.innerHTML =
-      '<p class="empty">Заказы доступны после входа. <a href="#cabinet">Войти</a></p>';
+      '<p class="empty">Чтобы увидеть заказы, <a href="#cabinet">войдите</a>.</p>';
     return;
   }
 
   const orders = getOrders();
   if (!orders.length) {
     element.innerHTML =
-      '<p class="empty">Заказов пока нет. Соберите макет в <a href="#editor">редакторе</a>.</p>';
+      '<p class="empty">Заказов пока нет.</p>';
     return;
   }
 
@@ -906,7 +906,7 @@ function renderOrders() {
       const note = order.note ? `<br>${escapeHtml(order.note)}` : "";
 
       return (
-        `<div class="ord"><img src="${thumb}" alt="Макет заказа ${escapeHtml(order.id)}">` +
+        `<div class="ord"><img src="${thumb}" alt="Фото заказа ${escapeHtml(order.id)}">` +
         `<div><b>Заказ №${escapeHtml(order.id)}</b> · ${escapeHtml(order.sum)}<br>` +
         `<small>${escapeHtml(order.fmt)}, ${escapeHtml(order.paper)}, ${escapeHtml(order.qty)} шт., ` +
         `эффект: ${escapeHtml(order.fx)}<br>${escapeHtml(order.recv)} · ${escapeHtml(order.date)}${note}</small></div>` +
