@@ -8,12 +8,14 @@
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+<!-- Шапка: логотип и навигация по трём разделам (переключение через hash). -->
 <header>
   <a class="logo" href="#editor"><span class="reg" aria-hidden="true"><i></i><i></i><i></i></span>Проявка</a>
   <nav aria-label="Разделы"><a href="#editor">Редактор</a><a href="#orders">Мои заказы</a><a href="#cabinet" id="navCab">Войти</a></nav>
 </header>
 <main>
 
+<!-- Раздел 1. Редактор макета: фото, эффекты, наклейки, формат и отправка заказа. -->
 <section id="v-editor">
   <h1>Макет фото для печати</h1>
   <p class="lead">Загрузите снимок, добавьте эффект или образ, выберите формат и отправьте заказ в печать.</p>
@@ -50,11 +52,13 @@
   </div>
 </section>
 
+<!-- Раздел 2. История заказов текущего пользователя. -->
 <section id="v-orders" hidden>
   <h1>Мои заказы</h1>
   <div class="box" id="ordList"></div>
 </section>
 
+<!-- Раздел 3. Личный кабинет: вход/регистрация или данные пользователя и его эффекты. -->
 <section id="v-cabinet" hidden>
   <div id="authBox" class="box" style="max-width:420px">
     <h1 id="authTtl">Вход</h1>
@@ -72,6 +76,7 @@
   </div>
 </section>
 </main>
+
 <div id="toast" role="status"></div>
 
 <script src="js/app.js"></script>
